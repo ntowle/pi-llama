@@ -39,6 +39,18 @@ This extension supports the following environment variables:
 - LLAMA_BASE_URL (Default: `http://localhost:8080/v1`)
 - LLAMA_API_KEY (Default: `no-key`)
 
+## Thinking Levels
+
+When a model's chat template supports `enable_thinking`, the extension enables
+reasoning for it. If the template also reads a `reasoning_effort` kwarg (e.g.
+Qwen3.8 "froggeric" templates), Pi's thinking levels (`low`/`medium`/`high`/`xhigh`)
+are forwarded to the template via `chat_template_kwargs.reasoning_effort`, with
+`enable_thinking` as the off switch. Otherwise only the boolean off/on toggle is
+exposed.
+
+Per-model narrowing (hiding levels, custom values) is still possible with Pi's
+`modelOverrides` for the `llama-cpp` provider.
+
 ## Usage
 
 ```bash

@@ -118,6 +118,18 @@ const TEMPLATE_THINKING_LEVEL_MAP = {
 	xhigh: null,
 } satisfies NonNullable<LlamaModel["thinkingLevelMap"]>;
 
+// Templates that read a `reasoning_effort` kwarg (e.g. Qwen3.8 "froggeric"
+// templates) implement graded thinking. Map Pi's levels onto the kwarg's
+// string values verbatim; templates that don't recognize a value choose their
+// own fallback.
+const EFFORT_THINKING_LEVEL_MAP = {
+	minimal: null,
+	low: "low",
+	medium: "medium",
+	high: "high",
+	xhigh: "xhigh",
+} satisfies NonNullable<LlamaModel["thinkingLevelMap"]>;
+
 // Minimal shape needed to update both registered models and Pi's active model snapshot.
 type MutableModelMetadata = {
 	reasoning: boolean;
@@ -137,6 +149,23 @@ function applyTemplateThinkingSupport(model: MutableModelMetadata): void {
 		// chat_template_kwargs.enable_thinking payload, not a Qwen-only option.
 		thinkingFormat: "qwen-chat-template",
 	};
+}
+
+// Mark a model as using its chat template's reasoning_effort kwarg for graded
+// thinking, with enable_thinking as the off switch.
+function applyEffortThinkingSupport(model: MutableModelMetadata): void {
+	model.reasoning = true;
+	model.thinkingLevelMap = EFFORT_THINKING_LEVEL_MAP;
+	// This provider is always openai-completions, but the model compat type is a
+	// union over all APIs, so cast the built object.
+	model.compat = {
+		...model.compat,
+		thinkingFormat: "chat-template",
+		chatTemplateKwargs: {
+			enable_thinking: { $var: "thinking.enabled" },
+			reasoning_effort: { $var: "thinking.effort" },
+		},
+	} as LlamaModel["compat"];
 }
 
 // Pi invalidates a captured ctx when the session is replaced (e.g. new_session in
@@ -454,7 +483,9 @@ export default async function (pi: ExtensionAPI) {
 				if (selectedModel) {
 					selectedModel.contextWindow = model.contextWindow;
 					selectedModel.maxTokens = model.maxTokens;
-					if (model.reasoning) {
+					// Skip thinking metadata when the snapshot already has it, so a
+					// user modelOverrides config on the active model is preserved.
+					if (model.reasoning && !selectedModel.reasoning) {
 						selectedModel.reasoning = model.reasoning;
 						selectedModel.thinkingLevelMap = model.thinkingLevelMap;
 						selectedModel.compat = model.compat;
@@ -540,10 +571,20 @@ export default async function (pi: ExtensionAPI) {
 				selectedModel.contextWindow = model.contextWindow;
 				selectedModel.maxTokens = model.maxTokens;
 			}
-			if (data.chat_template?.includes("enable_thinking") === true) {
-				applyTemplateThinkingSupport(model);
-				if (selectedModel) {
-					applyTemplateThinkingSupport(selectedModel);
+			const template = data.chat_template ?? "";
+			if (template.includes("enable_thinking")) {
+				// Templates that also read reasoning_effort get graded thinking;
+				// everything else falls back to the boolean enable_thinking toggle.
+				const applyThinkingSupport = template.includes("reasoning_effort")
+					? applyEffortThinkingSupport
+					: applyTemplateThinkingSupport;
+				applyThinkingSupport(model);
+				// Only sync into the active model snapshot when it has no thinking
+				// config yet (e.g. selected before discovery finished). A snapshot
+				// that is already reasoning-enabled may carry a user modelOverrides
+				// config that must not be clobbered.
+				if (selectedModel && !selectedModel.reasoning) {
+					applyThinkingSupport(selectedModel);
 					if (pi.getThinkingLevel() === "off") {
 						pi.setThinkingLevel("medium");
 					}
