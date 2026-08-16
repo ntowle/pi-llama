@@ -48,6 +48,10 @@ are forwarded to the template via `chat_template_kwargs.reasoning_effort`, with
 `enable_thinking` as the off switch. Otherwise only the boolean off/on toggle is
 exposed.
 
+Template capabilities are discovered from the server's `/props` endpoint when a
+session starts (for the active model) and whenever a model is selected, so
+thinking levels are available before the first prompt.
+
 Per-model narrowing (hiding levels, custom values) is still possible with Pi's
 `modelOverrides` for the `llama-cpp` provider.
 

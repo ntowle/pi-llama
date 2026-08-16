@@ -651,6 +651,17 @@ export default async function (pi: ExtensionAPI) {
 		void discoverModelMetadata(event.model.id, ctx, true, PROPS_TIMEOUT_MS, event.model);
 	});
 
+	// Discover metadata for the active model as soon as the session starts, so
+	// thinking levels are available before the first prompt. The
+	// before_provider_request path still covers sessions that start without a
+	// model and models selected later.
+	pi.on("session_start", (_event, ctx) => {
+		const model = ctx.model;
+		if (model?.provider === PROVIDER_ID) {
+			void discoverModelMetadata(model.id, ctx, true, PROPS_TIMEOUT_MS, model);
+		}
+	});
+
 	// Discover /props for already-active models because re-selecting them does not emit model_select.
 	pi.on("before_agent_start", async (_event, ctx) => {
 		try {
