@@ -19,7 +19,7 @@ const DEFAULT_CONTEXT_WINDOW = 8192;
 // llama.cpp has no output-token cap (no endpoint reports one; generation is only
 // bounded by the context window), so use Pi's own default for models that omit
 // maxTokens (see model-registry.ts parseModels).
-const DEFAULT_MAX_TOKENS = 16384;
+const DEFAULT_MAX_TOKENS = 65536;
 const PROPS_TIMEOUT_MS = 120_000;
 
 const ModelsResponseSchema = Type.Object({
